@@ -1,0 +1,34 @@
+% parameter file for rmsynthesis python code
+% capable of running standard RM Synthesis as well as RM Clean
+
+% Parameter file format: 
+% Comments can be added on their own lines, starting with a %, this must be followed by a space
+% Parameters are given as keyword value pairs, with spaces as delimiters
+
+% ra and dec min and max of the subimage to process, given in pixels
+% a value of -1 means to use the bound of the image
+dec_min 200
+dec_max 400
+ra_min 200
+ra_max 400
+
+% Define the phi axis, dphi in rad/m/m
+phi_min -100
+nphi 200
+dphi 1
+
+% Clean parameters.  gain is the loop gain, niter is the number of clean iterations, 
+% cutoff sets the value of the max of the residual image at which point the procedure stops, defined in Jy
+do_clean False
+gain 0.1
+niter 100
+cutoff 0.0001
+
+% weighting parameter. Give the name of the weight file (located in the input_dir). 
+% If you leave it out, all channels will be given a weight of 1.0.
+do_weight weight.txt
+
+% output file
+outputfn /afs/mpa/data/henrikju/commissioning/test.fits
+% directory where the input fits file can be found
+input_dir ../fits/
