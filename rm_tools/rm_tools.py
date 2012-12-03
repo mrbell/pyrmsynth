@@ -182,8 +182,9 @@ class RMSynth:
         rot = 2. * (self.l20 - self.l2i) * self.phi
         # shift results by the L20 and by the initial l2 value to
         # account for the fact that we start at L2!=0 as FFT expects
-        residual_map = numpy.complex(numpy.cos(rot),
-                                     numpy.sin(rot)) * residual_map
+        #residual_map = numpy.complex(numpy.cos(rot),
+                                     #numpy.sin(rot)) * residual_map
+        residual_map *= numpy.exp(complex(0, 1) * rot)
 
         return residual_map / self.grid_corr
 
@@ -265,8 +266,7 @@ class RMSynth:
         rot = 2. * (self.l20 - self.l2i) * rmsf_phi
         # shift results by the L20 and by the initial l2 value to account
         # for the fact that we start at L2!=0 as FFT expects
-        rmsf = numpy.complex(numpy.cos(rot), numpy.sin(rot)) *\
-            rmsf
+        rmsf *= numpy.exp(complex(0, 1) * rot)
 
         gridnorm = G.gridnorm(rmsf_phi, self.dl2 / 2., self.m, self.beta)
 
@@ -396,8 +396,8 @@ class RMClean:
         #for i in range(nphi):
             #clean_beam[i] = numpy.complex(math.exp(-0.5 *
                 #(self.synth.phi[i] - cphi) ** 2. * sdev ** -2.), 0)
-        clean_beam = numpy.complex(numpy.exp(-0.5 *
-                (self.synth.phi - cphi) ** 2. * sdev ** -2.), 0)
+        clean_beam = numpy.exp(-0.5 * complex(0, 1) *
+                (self.synth.phi - cphi) ** 2. * sdev ** -2.)
 
         return clean_beam
 
