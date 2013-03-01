@@ -34,6 +34,6 @@ for RM synthesis and RM CLEAN. You can easily write your own scripts to do file
 I/O and use this package to do the actual RM synthesis computations in an
 efficient manner.
 
-For more information, please refer to the [pyrmsynth Wiki](https://github.com/mrbell/gfft/wiki).
+For more information, please refer to the [pyrmsynth Wiki](https://github.com/mrbell/pyrmsynth/wiki).
 
 `pyrmsynth` is licensed under the [GPLv3](http://www.gnu.org/licenses/gpl.html).
