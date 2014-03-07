@@ -396,7 +396,7 @@ class RMClean:
         #for i in range(nphi):
             #clean_beam[i] = numpy.complex(math.exp(-0.5 *
                 #(self.synth.phi[i] - cphi) ** 2. * sdev ** -2.), 0)
-        clean_beam = numpy.exp(-0.5 * complex(0, 1) *
+        clean_beam = numpy.exp(-0.5 * complex(1,0) *
                 (self.synth.phi - cphi) ** 2. * sdev ** -2.)
 
         return clean_beam
