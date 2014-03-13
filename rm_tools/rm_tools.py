@@ -511,6 +511,7 @@ class RMClean:
 
         if self.residual_map is None and pol is not None:
             self.residual_map = self.synth.compute_dirty_image(pol)
+            self.dirty_image = self.residual_map
         elif self.residual_map is None and pol is None:
             msg = 'The class has not been initialized yet or no pol vector ' +\
                 'has been given.  Nothing to clean.'
