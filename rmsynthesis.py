@@ -155,6 +155,8 @@ def rmsynthesis(params, options, manual=False):
         print "Stokes V output is not available when the Stokes images are " +\
             "stored in separate files.  Turning Stokes V output off."
         options.stokes_v = False
+        
+    
 
     # Gather the input file names from the directory in the parset
     if not options.separate_stokes:
