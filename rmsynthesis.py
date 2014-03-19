@@ -285,7 +285,7 @@ def rmsynthesis(params, options, manual=False):
         "set of parameters is", res
     
     print "\n The maximum observable scale for the given set of parameters" +\
-        "is", maxscale
+        "is", maxscale + "\n"
 
     if (params.weight is not None and len(params.weight) != len(params.nu)):
         raise Exception('number of frequency channels in weight list is not ' +
