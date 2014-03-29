@@ -138,6 +138,8 @@ def rmsynthesis(params, options, manual=False):
     vcube_mmfn = 'stokesv.dat'
     incube_mmfn = 'incube.dat'
     outcube_mmfn = 'outcube.dat'
+    rescube_mmfn = 'outcube_res.dat'
+    cleancube_mmfn = 'outcube_clean.dat'
 
     if options.freq_last:
         freq_axnum = '4'
@@ -483,7 +485,7 @@ def rmsynthesis(params, options, manual=False):
             (len(params.phi), len(cube[0]), len(cube[0][0])),
             numpy.dtype('complex128'))
             
-        cleancube = create_memmap_file_and_array(rescube_mmfn,
+        cleancube = create_memmap_file_and_array(cleancube_mmfn,
             (len(params.phi), len(cube[0]), len(cube[0][0])),
             numpy.dtype('complex128'))
 
@@ -505,7 +507,7 @@ def rmsynthesis(params, options, manual=False):
                 rmc.restore_clean_map()
                 cleancube[:, indx, jndx] = rmc.clean_map.copy()
                 rescube[:, indx, jndx] = rmc.residual_map.copy()
-                dicube[:, indx, jndx] = rmc.dirt_image.copy()
+                dicube[:, indx, jndx] = rmc.dirty_image.copy()
                 for kndx in range(len(rmc.cc_phi_list)):
                     cclist.append([rmc.cc_phi_list[kndx][0], indx, jndx,
                         rmc.cc_val_list[kndx].real,
@@ -530,8 +532,13 @@ def rmsynthesis(params, options, manual=False):
     print 'Cleaning up temp files...'
     del dicube
     del cube
+    if params.do_clean:
+        del cleancube
+        del rescube
     os.remove(incube_mmfn)
     os.remove(outcube_mmfn)
+    os.remove(cleancube_mmfn)
+    os.remove(rescube_mmfn)
 
     print 'Done!'
 
@@ -592,7 +599,7 @@ def write_output_files(cube, params, inhead, typename):
             "header information stored!"
         print "Unexpected error:", sys.exc_info()[0]
     hdu_q_list = pyfits.HDUList([hdu_q])
-    hdu_q_list.writeto(params.outputfn + '_q.fits', clobber=True)
+    hdu_q_list.writeto(params.outputfn + '_' + typename +  '_q.fits', clobber=True)
 
     hdu_main = pyfits.PrimaryHDU(cube.imag)
     try:
@@ -602,7 +609,7 @@ def write_output_files(cube, params, inhead, typename):
             "header information stored!"
         print "Unexpected error:", sys.exc_info()[0]
     hdu_list = pyfits.HDUList([hdu_main])
-    hdu_list.writeto(params.outputfn + '_u.fits', clobber=True)
+    hdu_list.writeto(params.outputfn + '_' + typename + '_u.fits', clobber=True)
 
     hdu_p = pyfits.PrimaryHDU(abs(cube))
     try:
