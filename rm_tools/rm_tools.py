@@ -26,7 +26,6 @@ along with pyrmsynth.  If not, see <http://www.gnu.org/licenses/>.
 
 # TODO: Check for consistency of weighting and l20 stuff
 # TODO: Test that normalization is OK
-# TODO: Check RMClean
 
 
 import numpy

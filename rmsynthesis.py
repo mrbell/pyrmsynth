@@ -26,8 +26,6 @@ You should have received a copy of the GNU General Public License
 along with pyrmsynth.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-# TODO: URGENT! Create a standard test dataset
-# TODO: Test new weighting functionality
 
 # TODO: Implement sky plane mask, so RMSynth is only performed within mask
 # TODO: Read in CASA images as well as FITS files using CASACORE.
