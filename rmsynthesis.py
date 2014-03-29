@@ -26,10 +26,6 @@ You should have received a copy of the GNU General Public License
 along with pyrmsynth.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-# TODO: URGENT! Create a standard test dataset
-# TODO: Test new weighting functionality
-
-# TODO: Implement sky plane mask, so RMSynth is only performed within mask
 # TODO: Read in CASA images as well as FITS files using CASACORE.
 #       See emails from GvD
 # TODO: Read in spectral index info (from a parameter, or a FITS file)
@@ -48,7 +44,7 @@ import pylab
 
 import rm_tools as R
 
-VERSION = '1.2.0'
+VERSION = '1.2.1'
 
 
 class Params:
