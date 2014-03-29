@@ -470,13 +470,22 @@ def rmsynthesis(params, options, manual=False):
     if manual:
         return rms, cube
 
-    dfcube = create_memmap_file_and_array(outcube_mmfn,
+    # dirty image
+    dicube = create_memmap_file_and_array(outcube_mmfn,
         (len(params.phi), len(cube[0]), len(cube[0][0])),
         numpy.dtype('complex128'))
 
     if params.do_clean:
         # To store a master list of clean components for the entire cube
         cclist = list()
+        
+        rescube = create_memmap_file_and_array(rescube_mmfn,
+            (len(params.phi), len(cube[0]), len(cube[0][0])),
+            numpy.dtype('complex128'))
+            
+        cleancube = create_memmap_file_and_array(rescube_mmfn,
+            (len(params.phi), len(cube[0]), len(cube[0][0])),
+            numpy.dtype('complex128'))
 
     print 'Performing synthesis...'
     progress(20, 0)
@@ -494,20 +503,24 @@ def rmsynthesis(params, options, manual=False):
                 rmc.reset()
                 rmc.perform_clean(los)
                 rmc.restore_clean_map()
-                dfcube[:, indx, jndx] = rmc.clean_map.copy()
+                cleancube[:, indx, jndx] = rmc.clean_map.copy()
+                rescube[:, indx, jndx] = rmc.residual_map.copy()
+                dicube[:, indx, jndx] = rmc.dirt_image.copy()
                 for kndx in range(len(rmc.cc_phi_list)):
                     cclist.append([rmc.cc_phi_list[kndx][0], indx, jndx,
                         rmc.cc_val_list[kndx].real,
                         rmc.cc_val_list[kndx].imag])
             else:
-                dfcube[:, indx, jndx] = rms.compute_dirty_image(los)
+                dicube[:, indx, jndx] = rms.compute_dirty_image(los)
         pcent = 100. * (indx + 1.) * (jndx + 1.) / (rasz[1] - rasz[0]) /\
              (decsz[1] - decsz[0])
         progress(20, pcent)
 
     print 'RM synthesis done!  Writing out FITS files...'
-    write_output_files(dfcube, params, thead)
+    write_output_files(dicube, params, thead, 'di')
     if params.do_clean:
+        write_output_files(rescube, params, thead, 'residual')
+        write_output_files(cleancube, params, thead, 'clean')
         print 'Writing out CC list...'
         # TODO: need to make this usable!
         #   it doesn't work right now because there are just way too many CCs
@@ -515,7 +528,7 @@ def rmsynthesis(params, options, manual=False):
         #write_cc_list(cclist, params.outputfn+"_cc.txt")
 
     print 'Cleaning up temp files...'
-    del dfcube
+    del dicube
     del cube
     os.remove(incube_mmfn)
     os.remove(outcube_mmfn)
@@ -567,7 +580,7 @@ def plot_rmsf(rms):
     pylab.show()
 
 
-def write_output_files(cube, params, inhead):
+def write_output_files(cube, params, inhead, typename):
     """
     """
 
@@ -599,7 +612,7 @@ def write_output_files(cube, params, inhead):
             "header information stored!"
         print "Unexpected error:", sys.exc_info()[0]
     hdu_p_list = pyfits.HDUList([hdu_p])
-    hdu_p_list.writeto(params.outputfn + '_p.fits', clobber=True)
+    hdu_p_list.writeto(params.outputfn + '_' + typename + '_p.fits', clobber=True)
 
 
 def generate_v_header(hdu, inhead, params):
