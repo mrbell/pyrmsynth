@@ -281,10 +281,10 @@ def rmsynthesis(params, options, manual=False):
     res = 2. * math.sqrt(3) / delta_l2
     maxscale = numpy.pi / l2min
     
-    print "\n The maximum theroretical resolution for the given" +\
+    print "The maximum theroretical resolution for the given" +\
         "set of parameters is", res
     
-    print "\n The maximum observable scale for the given set of parameters" +\
+    print "The maximum observable scale for the given set of parameters" +\
         "is", maxscale 
     print "\n"
 
