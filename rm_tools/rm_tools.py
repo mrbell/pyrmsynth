@@ -34,7 +34,7 @@ from sys import stdout
 import grid_tools as G
 #import pylab
 
-VERSION = '1.2.0'
+VERSION = '1.2.1'
 
 toplot = True
 
