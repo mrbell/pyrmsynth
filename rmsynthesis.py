@@ -527,7 +527,7 @@ def rmsynthesis(params, options, manual=False):
         # TODO: need to make this usable!
         #   it doesn't work right now because there are just way too many CCs
 
-        #write_cc_list(cclist, params.outputfn+"_cc.txt")
+        write_cc_list(cclist, params.outputfn+"_cc.txt")
 
     print 'Cleaning up temp files...'
     del dicube
