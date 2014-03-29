@@ -423,10 +423,10 @@ def rmsynthesis(params, options, manual=False):
     print "\n"
     
     print "The maximum theroretical resolution for the given" +\
-        " set of parameters is" +str(res) + "rad/m^2"
+        " set of parameters is " +str(res) + " rad/m^2"
     
     print "The maximum observable scale for the given set of parameters" +\
-        " is" +str(maxscale) + "rad/m^2" 
+        " is " +str(maxscale) + " rad/m^2" 
     print "\n"
 
     # initialize the RMSynth class that does all the work
