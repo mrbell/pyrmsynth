@@ -513,6 +513,8 @@ def rmsynthesis(params, options, manual=False):
         pcent = 100. * (indx + 1.) * (jndx + 1.) / (rasz[1] - rasz[0]) /\
              (decsz[1] - decsz[0])
         progress(20, pcent)
+        
+    print "The the fitted FWHM of the clean beam is" +str(rmc.sdev) + " rad/m^2"
 
     print 'RM synthesis done!  Writing out FITS files...'
     write_output_files(dicube, params, thead, 'di')
@@ -717,8 +719,8 @@ def generate_header(hdu, inhead, params):
     rmsf = 2. * math.sqrt(3) / delta_l2
     maxscale = numpy.pi / l2min
 
-    hdu.header.update('SFFWHM', rmsf,
-                      'FWHM of the RM spread function, rad/m/m')
+    hdu.header.update('TFFWHM', rmsf,
+                      'Theoretical FWHM of the RM spread function, rad/m/m')
     hdu.header.update('MAXSCL', maxscale, 'Maximum scale in Faraday depth, ' +
                       'rad/m/m')
 

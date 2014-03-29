@@ -385,7 +385,7 @@ class RMClean:
                 beam located at the central pixel.
         """
 
-        sdev = self.fwhm_restoring_sf / 2. / math.sqrt(2. * math.log(2.))
+        self.sdev = self.fwhm_restoring_sf / 2. / math.sqrt(2. * math.log(2.))
         cphi = 0    # central phi value
 
         #nphi = len(self.synth.phi)
@@ -396,7 +396,7 @@ class RMClean:
             #clean_beam[i] = numpy.complex(math.exp(-0.5 *
                 #(self.synth.phi[i] - cphi) ** 2. * sdev ** -2.), 0)
         clean_beam = numpy.exp(-0.5 * complex(1,0) *
-                (self.synth.phi - cphi) ** 2. * sdev ** -2.)
+                (self.synth.phi - cphi) ** 2. * self.sdev ** -2.)
 
         return clean_beam
 
