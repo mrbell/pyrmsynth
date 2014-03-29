@@ -269,26 +269,6 @@ def rmsynthesis(params, options, manual=False):
     # This gets overwritten later for rest_freq mode!
     # store the channel width, in Hz
     params.dnu = thead.get('CDELT' + freq_axnum)
-    
-    # Print out basic parameters    
-    C2 = 8.98755179e16
-    nus = numpy.sort(params.nu)
-    dnu = params.dnu
-    delta_l2 = C2 * (nus[0] ** (-2) - nus[len(nus) - 1] ** (-2))
-    l2min = 0.5 * C2 * ((nus[len(nus) - 1] + dnu) ** (-2)
-                        + (nus[len(nus) - 1] - dnu) ** (-2))
-
-    res = 2. * math.sqrt(3) / delta_l2
-    maxscale = numpy.pi / l2min
-    
-    print "\n"
-    
-    print "The maximum theroretical resolution for the given" +\
-        "set of parameters is", res
-    
-    print "The maximum observable scale for the given set of parameters" +\
-        "is", maxscale 
-    print "\n"
 
     if (params.weight is not None and len(params.weight) != len(params.nu)):
         raise Exception('number of frequency channels in weight list is not ' +
@@ -428,6 +408,26 @@ def rmsynthesis(params, options, manual=False):
     if options.rest_freq:
         # FIXME: This isn't very general and could lead to problems.
         params.dnu = params.nu[1] - params.nu[0]
+        
+    # Print out basic parameters    
+    C2 = 8.98755179e16
+    nus = numpy.sort(params.nu)
+    dnu = params.dnu
+    delta_l2 = C2 * (nus[0] ** (-2) - nus[len(nus) - 1] ** (-2))
+    l2min = 0.5 * C2 * ((nus[len(nus) - 1] + dnu) ** (-2)
+                        + (nus[len(nus) - 1] - dnu) ** (-2))
+
+    res = 2. * math.sqrt(3) / delta_l2
+    maxscale = numpy.pi / l2min
+    
+    print "\n"
+    
+    print "The maximum theroretical resolution for the given" +\
+        "set of parameters is", res
+    
+    print "The maximum observable scale for the given set of parameters" +\
+        "is", maxscale 
+    print "\n"
 
     # initialize the RMSynth class that does all the work
     rms = R.RMSynth(params.nu, params.dnu, params.phi, params.weight)
