@@ -721,8 +721,8 @@ def generate_header(hdu, inhead, params):
     rmsf = 2. * math.sqrt(3) / delta_l2
     maxscale = numpy.pi / l2min
 
-    hdu.header.update('TFFWHM', round(rmsf,2), 'Theoretical FWHM of the RM ' +
-        'spread function, rad/m/m')
+    hdu.header.update('TFFWHM', round(rmsf,2), 'Theoretical FWHM of the RMSF ' +
+        ', rad/m/m')
     hdu.header.update('MAXSCL', round(maxscale,2), 'Maximum scale in ' +
         'Faraday depth rad/m/m')
 
