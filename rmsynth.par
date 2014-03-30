@@ -31,4 +31,4 @@ do_weight weight.txt
 % output file
 outputfn /afs/mpa/data/henrikju/commissioning/test.fits
 % directory where the input fits file can be found
-input_dir ../fits/
+input_dir ./

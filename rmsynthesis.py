@@ -26,10 +26,6 @@ You should have received a copy of the GNU General Public License
 along with pyrmsynth.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-# TODO: URGENT! Create a standard test dataset
-# TODO: Test new weighting functionality
-
-# TODO: Implement sky plane mask, so RMSynth is only performed within mask
 # TODO: Read in CASA images as well as FITS files using CASACORE.
 #       See emails from GvD
 # TODO: Read in spectral index info (from a parameter, or a FITS file)
@@ -48,7 +44,7 @@ import pylab
 
 import rm_tools as R
 
-VERSION = '1.2.0'
+VERSION = '1.2.1'
 
 
 class Params:
@@ -138,6 +134,8 @@ def rmsynthesis(params, options, manual=False):
     vcube_mmfn = 'stokesv.dat'
     incube_mmfn = 'incube.dat'
     outcube_mmfn = 'outcube.dat'
+    rescube_mmfn = 'outcube_res.dat'
+    cleancube_mmfn = 'outcube_clean.dat'
 
     if options.freq_last:
         freq_axnum = '4'
@@ -408,6 +406,26 @@ def rmsynthesis(params, options, manual=False):
     if options.rest_freq:
         # FIXME: This isn't very general and could lead to problems.
         params.dnu = params.nu[1] - params.nu[0]
+        
+    # Print out basic parameters    
+    C2 = 8.98755179e16
+    nus = numpy.sort(params.nu)
+    dnu = params.dnu
+    delta_l2 = C2 * (nus[0] ** (-2) - nus[len(nus) - 1] ** (-2))
+    l2min = 0.5 * C2 * ((nus[len(nus) - 1] + dnu) ** (-2)
+                        + (nus[len(nus) - 1] - dnu) ** (-2))
+
+    res = 2. * math.sqrt(3) / delta_l2
+    maxscale = numpy.pi / l2min
+    
+    print "\n"
+    
+    print "The maximum theroretical resolution for the given" +\
+        " set of parameters is " +str(round(res)) + " rad/m^2"
+    
+    print "The maximum observable scale for the given set of parameters" +\
+        " is " +str(round(maxscale)) + " rad/m^2" 
+    print "\n"
 
     # initialize the RMSynth class that does all the work
     rms = R.RMSynth(params.nu, params.dnu, params.phi, params.weight)
@@ -450,13 +468,22 @@ def rmsynthesis(params, options, manual=False):
     if manual:
         return rms, cube
 
-    dfcube = create_memmap_file_and_array(outcube_mmfn,
+    # dirty image
+    dicube = create_memmap_file_and_array(outcube_mmfn,
         (len(params.phi), len(cube[0]), len(cube[0][0])),
         numpy.dtype('complex128'))
 
     if params.do_clean:
         # To store a master list of clean components for the entire cube
         cclist = list()
+        
+        rescube = create_memmap_file_and_array(rescube_mmfn,
+            (len(params.phi), len(cube[0]), len(cube[0][0])),
+            numpy.dtype('complex128'))
+            
+        cleancube = create_memmap_file_and_array(cleancube_mmfn,
+            (len(params.phi), len(cube[0]), len(cube[0][0])),
+            numpy.dtype('complex128'))
 
     print 'Performing synthesis...'
     progress(20, 0)
@@ -474,31 +501,44 @@ def rmsynthesis(params, options, manual=False):
                 rmc.reset()
                 rmc.perform_clean(los)
                 rmc.restore_clean_map()
-                dfcube[:, indx, jndx] = rmc.clean_map.copy()
+                cleancube[:, indx, jndx] = rmc.clean_map.copy()
+                rescube[:, indx, jndx] = rmc.residual_map.copy()
+                dicube[:, indx, jndx] = rmc.dirty_image.copy()
                 for kndx in range(len(rmc.cc_phi_list)):
                     cclist.append([rmc.cc_phi_list[kndx][0], indx, jndx,
                         rmc.cc_val_list[kndx].real,
                         rmc.cc_val_list[kndx].imag])
             else:
-                dfcube[:, indx, jndx] = rms.compute_dirty_image(los)
+                dicube[:, indx, jndx] = rms.compute_dirty_image(los)
         pcent = 100. * (indx + 1.) * (jndx + 1.) / (rasz[1] - rasz[0]) /\
              (decsz[1] - decsz[0])
         progress(20, pcent)
+      
+    print '\n'  
+    print "The fitted FWHM of the clean beam is " +str(round(rmc.sdev,2)) + " rad/m^2"
+    print '\n'
 
     print 'RM synthesis done!  Writing out FITS files...'
-    write_output_files(dfcube, params, thead)
+    write_output_files(dicube, params, thead, 'di')
     if params.do_clean:
-        print 'Writing out CC list...'
+        write_output_files(rescube, params, thead, 'residual')
+        write_output_files(cleancube, params, thead, 'clean')
+        #print 'Writing out CC list...'
         # TODO: need to make this usable!
         #   it doesn't work right now because there are just way too many CCs
 
         #write_cc_list(cclist, params.outputfn+"_cc.txt")
 
     print 'Cleaning up temp files...'
-    del dfcube
+    del dicube
     del cube
+    if params.do_clean:
+        del cleancube
+        del rescube
     os.remove(incube_mmfn)
     os.remove(outcube_mmfn)
+    os.remove(cleancube_mmfn)
+    os.remove(rescube_mmfn)
 
     print 'Done!'
 
@@ -547,7 +587,7 @@ def plot_rmsf(rms):
     pylab.show()
 
 
-def write_output_files(cube, params, inhead):
+def write_output_files(cube, params, inhead, typename):
     """
     """
 
@@ -559,7 +599,7 @@ def write_output_files(cube, params, inhead):
             "header information stored!"
         print "Unexpected error:", sys.exc_info()[0]
     hdu_q_list = pyfits.HDUList([hdu_q])
-    hdu_q_list.writeto(params.outputfn + '_q.fits', clobber=True)
+    hdu_q_list.writeto(params.outputfn + '_' + typename +  '_q.fits', clobber=True)
 
     hdu_main = pyfits.PrimaryHDU(cube.imag)
     try:
@@ -569,7 +609,7 @@ def write_output_files(cube, params, inhead):
             "header information stored!"
         print "Unexpected error:", sys.exc_info()[0]
     hdu_list = pyfits.HDUList([hdu_main])
-    hdu_list.writeto(params.outputfn + '_u.fits', clobber=True)
+    hdu_list.writeto(params.outputfn + '_' + typename + '_u.fits', clobber=True)
 
     hdu_p = pyfits.PrimaryHDU(abs(cube))
     try:
@@ -579,7 +619,7 @@ def write_output_files(cube, params, inhead):
             "header information stored!"
         print "Unexpected error:", sys.exc_info()[0]
     hdu_p_list = pyfits.HDUList([hdu_p])
-    hdu_p_list.writeto(params.outputfn + '_p.fits', clobber=True)
+    hdu_p_list.writeto(params.outputfn + '_' + typename + '_p.fits', clobber=True)
 
 
 def generate_v_header(hdu, inhead, params):
@@ -681,10 +721,10 @@ def generate_header(hdu, inhead, params):
     rmsf = 2. * math.sqrt(3) / delta_l2
     maxscale = numpy.pi / l2min
 
-    hdu.header.update('SFFWHM', rmsf,
-                      'FWHM of the RM spread function, rad/m/m')
-    hdu.header.update('MAXSCL', maxscale, 'Maximum scale in Faraday depth, ' +
-                      'rad/m/m')
+    hdu.header.update('TFFWHM', round(rmsf,2), 'Theoretical FWHM of the RMSF ' +
+        ', rad/m/m')
+    hdu.header.update('MAXSCL', round(maxscale,2), 'Maximum scale in ' +
+        'Faraday depth rad/m/m')
 
     hdu.header.add_history('RMSYNTH: RM Synthesis performed by ' +
                            'rmsynthesis.py version ' + str(VERSION) + '.')
