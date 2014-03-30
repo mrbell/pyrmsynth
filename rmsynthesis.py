@@ -26,10 +26,6 @@ You should have received a copy of the GNU General Public License
 along with pyrmsynth.  If not, see <http://www.gnu.org/licenses/>.
 """
 
-# TODO: URGENT! Create a standard test dataset
-# TODO: Test new weighting functionality
-
-# TODO: Implement sky plane mask, so RMSynth is only performed within mask
 # TODO: Read in CASA images as well as FITS files using CASACORE.
 #       See emails from GvD
 # TODO: Read in spectral index info (from a parameter, or a FITS file)
@@ -48,7 +44,7 @@ import pylab
 
 import rm_tools as R
 
-VERSION = '1.2.0'
+VERSION = '1.2.1'
 
 
 class Params:
@@ -425,10 +421,10 @@ def rmsynthesis(params, options, manual=False):
     print "\n"
     
     print "The maximum theroretical resolution for the given" +\
-        " set of parameters is " +str(res) + " rad/m^2"
+        " set of parameters is " +str(round(res)) + " rad/m^2"
     
     print "The maximum observable scale for the given set of parameters" +\
-        " is " +str(maxscale) + " rad/m^2" 
+        " is " +str(round(maxscale)) + " rad/m^2" 
     print "\n"
 
     # initialize the RMSynth class that does all the work
@@ -517,13 +513,17 @@ def rmsynthesis(params, options, manual=False):
         pcent = 100. * (indx + 1.) * (jndx + 1.) / (rasz[1] - rasz[0]) /\
              (decsz[1] - decsz[0])
         progress(20, pcent)
+      
+    print '\n'  
+    print "The fitted FWHM of the clean beam is " +str(round(rmc.sdev,2)) + " rad/m^2"
+    print '\n'
 
     print 'RM synthesis done!  Writing out FITS files...'
     write_output_files(dicube, params, thead, 'di')
     if params.do_clean:
         write_output_files(rescube, params, thead, 'residual')
         write_output_files(cleancube, params, thead, 'clean')
-        print 'Writing out CC list...'
+        #print 'Writing out CC list...'
         # TODO: need to make this usable!
         #   it doesn't work right now because there are just way too many CCs
 
@@ -721,10 +721,10 @@ def generate_header(hdu, inhead, params):
     rmsf = 2. * math.sqrt(3) / delta_l2
     maxscale = numpy.pi / l2min
 
-    hdu.header.update('SFFWHM', rmsf,
-                      'FWHM of the RM spread function, rad/m/m')
-    hdu.header.update('MAXSCL', maxscale, 'Maximum scale in Faraday depth, ' +
-                      'rad/m/m')
+    hdu.header.update('TFFWHM', round(rmsf,2), 'Theoretical FWHM of the RMSF ' +
+        ', rad/m/m')
+    hdu.header.update('MAXSCL', round(maxscale,2), 'Maximum scale in ' +
+        'Faraday depth rad/m/m')
 
     hdu.header.add_history('RMSYNTH: RM Synthesis performed by ' +
                            'rmsynthesis.py version ' + str(VERSION) + '.')
