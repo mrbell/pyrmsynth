@@ -7,7 +7,7 @@
 `pyrmsynth` performs RM synthesis, either simply by Fourier transformation 
 (to produce a dirty image) or using the RMCLEAN method as described by 
 Heald, et al. (2009).  It uses FFTs for the Fourier inversion and, as far as  
-know to the authors, this is the only RM synthesis software around that does
+known to the authors, this is the only RM synthesis software around that does
 this. The Numpy FFTs are themselves quite fast, but in order to use them, the
 data first need to be placed on a regularly spaced lambda^2 grid. For this, the
 data are "gridded" by convolution with a Kaiser-Bessel Window function and
