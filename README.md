@@ -7,7 +7,7 @@
 `pyrmsynth` performs RM synthesis, either simply by Fourier transformation 
 (to produce a dirty image) or using the RMCLEAN method as described by 
 Heald, et al. (2009).  It uses FFTs for the Fourier inversion and, as far as  
-know to the authors, this is the only RM synthesis software around that does
+known to the authors, this is the only RM synthesis software around that does
 this. The Numpy FFTs are themselves quite fast, but in order to use them, the
 data first need to be placed on a regularly spaced lambda^2 grid. For this, the
 data are "gridded" by convolution with a Kaiser-Bessel Window function and
@@ -60,19 +60,27 @@ set when running the code. Type rmsynthesis.py -h if you need help. Right now,
 the options are
 
 Options:
+
   --version        show program's version number and exit
+  
   -h, --help       show this help message and exit
+  
   -p, --plot_rmsf  Plot the RMSF as soon as it is computed.
+  
   -V, --stokes_v   Produce a Stokes V cube after reading the fits files.
+  
   -s, --separate_stokes
                    Indicate that the Stokes Q and U input images are stored in
                    separate FITS files.
+                   
   -f, --freq_last  Indicate that NAXIS4 is the frequency axis.
+  
   -r, --rest_freq  Indicate that the frequency for an image is given in the
                    RESTFREQ header keyword
 
-For more detailed information, please refer to the wiki on the github page of
-pyrmsynth (https://github.com/mrbell/pyrmsynth/wiki/Using-rmsynthesis.py).
-Any bugs and issues can be reported to the developers via the same github page.
+For more detailed information, please refer to the pyrmsynth
+wiki (https://github.com/mrbell/pyrmsynth/wiki/Using-rmsynthesis.py).
+Any bugs and issues can be reported to the developers via the github issue
+tracker.
                    
 `pyrmsynth` is licensed under the [GPLv3](http://www.gnu.org/licenses/gpl.html).
