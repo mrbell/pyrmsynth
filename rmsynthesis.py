@@ -69,7 +69,9 @@ class Params:
         self.cutoff = 0.
         self.do_clean = False
         self.isl2 = False
-        self.weight = None
+        self.userweights = None
+        self.weighting = 'natural'
+        self.noisefromV = True
         self.outputfn = 'test_100A'
         self.input_dir = './'
         self.ra_lim = []
@@ -268,11 +270,11 @@ def rmsynthesis(params, options, manual=False):
     # store the channel width, in Hz
     params.dnu = thead.get('CDELT' + freq_axnum)
 
-    if (params.weight is not None and len(params.weight) != len(params.nu)):
+    if (params.userweights is not None and len(params.userweights) != len(params.nu)):
         raise Exception('number of frequency channels in weight list is not ' +
                         'compatible with input visibilities.')
-    if params.weight is None:
-        params.weight = numpy.ones(len(params.nu))
+    if params.userweights is None:
+        params.userweights = numpy.ones(len(params.nu))
 
     params()
     print ' '
@@ -300,7 +302,7 @@ def rmsynthesis(params, options, manual=False):
                         tdata[2, :, decsz[0]:decsz[1], rasz[0]:rasz[1]]
 
                     # XXX: The commented code above isn't the appropriate way
-                    #   to deal with weights. Hand params.weight to the
+                    #   to deal with weights. Hand params.userweights to the
                     #   RMSynth class init instead. This has been fixed
 
                 else:
@@ -426,9 +428,19 @@ def rmsynthesis(params, options, manual=False):
     print "The maximum observable scale for the given set of parameters" +\
         " is " +str(round(maxscale)) + " rad/m^2" 
     print "\n"
-
+    
+    # calculate noise variance from Stokes-V
+    if options separate_stokes:
+        var_spectrum = numpy.ones(len(fns_q) * nchan)
+    else:
+        var_spectrum = numpy.ones(len(fns) * nchan)
+    if self.noisefromV:
+        for i in range(len(var_spectrum)):
+            var_spectrum[i] = 1./(numpy.std(vcube[i,:,:])**2)
+        
     # initialize the RMSynth class that does all the work
-    rms = R.RMSynth(params.nu, params.dnu, params.phi, params.weight)
+    rms = R.RMSynth(params.nu, params.dnu, params.phi, params.userweights, \
+        params.weighting, var_spectrum)
     print "Done!"
 
     # Write out the RMSF to a text file
@@ -802,9 +814,23 @@ def parse_input_file(infile):
     params.outputfn = parset['outputfn']
     params.input_dir = parset['input_dir']
 
-    if 'do_weight' in parset:
-        params.weight = numpy.loadtxt(params.input_dir + parset['do_weight'])
-        print 'Non-trivial weights enabled! Loaded from ' + parset['do_weight']
+    if 'user_weight' in parset:
+        params.userweights = numpy.loadtxt(params.input_dir + parset['user_weight'])
+        print 'Non-trivial, user specified frequency weights enabled! ' +
+            'Loaded from ' + parset['user_weight']
+            
+    if 'weighting' in parset:
+        params.weighting = numpy.loadtxt(params.input_dir + parset['weighting'])
+        
+    if 'noisefromV' in parset:
+        params.noisefromV = numpy.loadtxt(params.input_dir + parset['noisefromV'])
+        # NoisefromV implies that Stokes V must be calculated. Added here 
+        # should the user have forgotten that
+        if options,stokes_v = False:
+            print 'Warning: No stokes_v is calculated. Setting parameter ' +
+                'stokes_v to True in order to calculate noise variances as ' +
+                'indicated in the parameter file.'
+            options.stokes_v = True
 
     return params
 
