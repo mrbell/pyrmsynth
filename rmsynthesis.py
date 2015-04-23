@@ -525,10 +525,11 @@ def rmsynthesis(params, options, manual=False):
         pcent = 100. * (indx + 1.) * (jndx + 1.) / (rasz[1] - rasz[0]) /\
              (decsz[1] - decsz[0])
         progress(20, pcent)
-      
-    print '\n'  
-    print "The fitted FWHM of the clean beam is " +str(round(rmc.sdev,2)) + " rad/m^2"
-    print '\n'
+    
+    if params.do_clean:  
+        print '\n'  
+        print "The fitted FWHM of the clean beam is " +str(round(rmc.sdev,2)) + " rad/m^2"
+        print '\n'
 
     print 'RM synthesis done!  Writing out FITS files...'
     write_output_files(dicube, params, thead, 'di')
