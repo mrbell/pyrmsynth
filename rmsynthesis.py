@@ -550,8 +550,9 @@ def rmsynthesis(params, options, manual=False):
         del rescube
     os.remove(incube_mmfn)
     os.remove(outcube_mmfn)
-    os.remove(cleancube_mmfn)
-    os.remove(rescube_mmfn)
+    if params.do_clean:
+        os.remove(cleancube_mmfn)
+        os.remove(rescube_mmfn)
 
     print 'Done!'
 
