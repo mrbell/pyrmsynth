@@ -8,7 +8,7 @@ RM Synthesis software for use with sets of FITS image files.  Written in Python
 with some sub-functions re-written in Cython for speed.  Standard Fourier
 inversion and Hogbom style CLEAN imaging are possible.
 
-Copyright 2012 Michael Bell, Henrik Junklewitz
+Copyright 2012 Michael Bell and Henrik Junklewitz
 
 This file is part of the pyrmsynth package.
 
@@ -69,13 +69,13 @@ class Params:
         self.cutoff = 0.
         self.do_clean = False
         self.isl2 = False
-        self.userweights = None
-        self.weighting = 'natural'
-        self.noisefromV = True
+        self.weight = None
         self.outputfn = 'test_100A'
         self.input_dir = './'
         self.ra_lim = []
         self.dec_lim = []
+        self.alpha = False
+        self.ref_freq= None
 
     def __call__(self):
         """
@@ -85,6 +85,17 @@ class Params:
         print '    phi_min:         ', self.phi_min
         print '    dphi:            ', self.dphi
         print '    nphi:            ', self.nphi
+
+        
+        if type(self.alpha)==float or type(self.alpha)== int:
+            print '  Averaged spectral index provided:'
+            print '    alpha:           ', self.alpha
+            print '    ref_freq:        ', self.ref_freq
+        elif type(self.alpha) == str: 
+            print '  Spectral index image provided:'
+            print '    from:      ', self.alpha
+            print '    ref_freq:        ', self.ref_freq
+            
         if self.do_clean:
             print '  RM CLEAN enabled:'
             print '    niter:           ', self.niter
@@ -243,8 +254,8 @@ def rmsynthesis(params, options, manual=False):
     else:
         params.ra_lim[1] = len(tdata[0, 0, 0])
     if rasz[0] >= rasz[1]:
-        raise Exception('Invalid image bounds')
-
+        raise Exception('Invalid image bounds')    
+    
     nchan = thead.get('NAXIS' + freq_axnum)
     if options.rest_freq and nchan != 1:
         raise Exception('rest_freq option is only valid for files with one \
@@ -270,11 +281,11 @@ def rmsynthesis(params, options, manual=False):
     # store the channel width, in Hz
     params.dnu = thead.get('CDELT' + freq_axnum)
 
-    if (params.userweights is not None and len(params.userweights) != len(params.nu)):
+    if (params.weight is not None and len(params.weight) != len(params.nu)):
         raise Exception('number of frequency channels in weight list is not ' +
                         'compatible with input visibilities.')
-    if params.userweights is None:
-        params.userweights = numpy.ones(len(params.nu))
+    if params.weight is None:
+        params.weight = numpy.ones(len(params.nu))
 
     params()
     print ' '
@@ -302,7 +313,7 @@ def rmsynthesis(params, options, manual=False):
                         tdata[2, :, decsz[0]:decsz[1], rasz[0]:rasz[1]]
 
                     # XXX: The commented code above isn't the appropriate way
-                    #   to deal with weights. Hand params.userweights to the
+                    #   to deal with weights. Hand params.weight to the
                     #   RMSynth class init instead. This has been fixed
 
                 else:
@@ -408,7 +419,8 @@ def rmsynthesis(params, options, manual=False):
     if options.rest_freq:
         # FIXME: This isn't very general and could lead to problems.
         params.dnu = params.nu[1] - params.nu[0]
-        
+    
+    
     # Print out basic parameters    
     C2 = 8.98755179e16
     nus = numpy.sort(params.nu)
@@ -429,18 +441,33 @@ def rmsynthesis(params, options, manual=False):
         " is " +str(round(maxscale)) + " rad/m^2" 
     print "\n"
     
-    # calculate noise variance from Stokes-V
-    if options separate_stokes:
-        var_spectrum = numpy.ones(len(fns_q) * nchan)
-    else:
-        var_spectrum = numpy.ones(len(fns) * nchan)
-    if self.noisefromV:
-        for i in range(len(var_spectrum)):
-            var_spectrum[i] = 1./(numpy.std(vcube[i,:,:])**2)
+    # If requested, produce an array containing the spectral index information
+    # and apply it
+    if params.alpha:
+        
+        if type(params.alpha_image) == str:
+            alphadata = pyfits.getdata(params.alpha)
+            if numpy.shape(alphadata) != (decsz[1]-decsz[0], rasz[1]-rasz[0]):
+                raise Exception('Size of the spectral index image is \
+                    inconsestent with parameter inputs.')  
+            alpha=alphadata
+            
+        elif type(params.alpha)==float or type(params.alpha)==int:
+            alpha = numpy.ones((decsz[1]-decsz[0], rasz[1]-rasz[0])) * \
+                params.alpha
+    
+        # Rescale cube with spectral dependence function s, assuming 
+        # separability of the spectrally dependent Faraday spectrum, 
+        # following de Bruyn & Brentjens 2005. Division already by
+        # lambda2 dependence despite the array still being ordered
+        # in frequency.
+    
+        #PROBLEM: HOW TO TRANSLATE SPECTRUM?
+        cube /= (C2/(nus/params.rest_freq)**2)-alpha
+    
         
     # initialize the RMSynth class that does all the work
-    rms = R.RMSynth(params.nu, params.dnu, params.phi, params.userweights, \
-        params.weighting, var_spectrum)
+    rms = R.RMSynth(params.nu, params.dnu, params.phi, params.weight)
     print "Done!"
 
     # Write out the RMSF to a text file
@@ -484,7 +511,7 @@ def rmsynthesis(params, options, manual=False):
     dicube = create_memmap_file_and_array(outcube_mmfn,
         (len(params.phi), len(cube[0]), len(cube[0][0])),
         numpy.dtype('complex128'))
-
+    
     if params.do_clean:
         # To store a master list of clean components for the entire cube
         cclist = list()
@@ -496,7 +523,7 @@ def rmsynthesis(params, options, manual=False):
         cleancube = create_memmap_file_and_array(cleancube_mmfn,
             (len(params.phi), len(cube[0]), len(cube[0][0])),
             numpy.dtype('complex128'))
-
+            
     print 'Performing synthesis...'
     progress(20, 0)
 
@@ -508,7 +535,7 @@ def rmsynthesis(params, options, manual=False):
     for indx in range(decsz[1] - decsz[0]):
         for jndx in range(rasz[1] - rasz[0]):
             los = cube[:, indx, jndx]
-
+            print 'los', los
             if params.do_clean:
                 rmc.reset()
                 rmc.perform_clean(los)
@@ -525,11 +552,10 @@ def rmsynthesis(params, options, manual=False):
         pcent = 100. * (indx + 1.) * (jndx + 1.) / (rasz[1] - rasz[0]) /\
              (decsz[1] - decsz[0])
         progress(20, pcent)
-    
-    if params.do_clean:  
-        print '\n'  
-        print "The fitted FWHM of the clean beam is " +str(round(rmc.sdev,2)) + " rad/m^2"
-        print '\n'
+      
+    print '\n'  
+    print "The fitted FWHM of the clean beam is " +str(round(rmc.sdev,2)) + " rad/m^2"
+    print '\n'
 
     print 'RM synthesis done!  Writing out FITS files...'
     write_output_files(dicube, params, thead, 'di')
@@ -550,9 +576,8 @@ def rmsynthesis(params, options, manual=False):
         del rescube
     os.remove(incube_mmfn)
     os.remove(outcube_mmfn)
-    if params.do_clean:
-        os.remove(cleancube_mmfn)
-        os.remove(rescube_mmfn)
+    os.remove(cleancube_mmfn)
+    os.remove(rescube_mmfn)
 
     print 'Done!'
 
@@ -816,23 +841,18 @@ def parse_input_file(infile):
     params.outputfn = parset['outputfn']
     params.input_dir = parset['input_dir']
 
-    if 'user_weight' in parset:
-        params.userweights = numpy.loadtxt(params.input_dir + parset['user_weight'])
-        print 'Non-trivial, user specified frequency weights enabled! ' +
-            'Loaded from ' + parset['user_weight']
-            
-    if 'weighting' in parset:
-        params.weighting = numpy.loadtxt(params.input_dir + parset['weighting'])
-        
-    if 'noisefromV' in parset:
-        params.noisefromV = numpy.loadtxt(params.input_dir + parset['noisefromV'])
-        # NoisefromV implies that Stokes V must be calculated. Added here 
-        # should the user have forgotten that
-        if options,stokes_v = False:
-            print 'Warning: No stokes_v is calculated. Setting parameter ' +
-                'stokes_v to True in order to calculate noise variances as ' +
-                'indicated in the parameter file.'
-            options.stokes_v = True
+    if parset['alpha_image'].lower() == 'false':
+        params.alpha_image = False
+        params.alpha_val=float(parset['alpha_val'])
+        params.ref_freq=float(parset['ref_freq'])
+    else:
+        params.alpha_image = True
+        params.alpha_path=parset['alpha_path']
+        params.ref_freq=thead.get('NFREQ')
+    
+    if 'do_weight' in parset:
+        params.weight = numpy.loadtxt(params.input_dir + parset['do_weight'])
+        print 'Non-trivial weights enabled! Loaded from ' + parset['do_weight']
 
     return params
 
