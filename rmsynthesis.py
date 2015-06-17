@@ -462,7 +462,8 @@ def rmsynthesis(params, options, manual=False):
         # lambda2 dependence despite the array still being ordered
         # in frequency.
     
-        #PROBLEM: HOW TO TRANSLATE SPECTRUM?
+        #PROBLEM: HOW TO TRANSLATE THE SPECTRUM? MOST PROBABLY NOT CORRECT 
+        #THIS WAY
         cube /= (C2/(nus/params.rest_freq)**2)-alpha
     
         

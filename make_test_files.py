@@ -19,8 +19,8 @@ if len(sys.argv) != 10:
 # The model file is a text file containing model point parameters, with each
 # parameter separated by spaces. One model definition per line!
 # Each line contains:
-#     Phi location (rad/m/m), Dec (pixel), RA (pixel), Stokes I, Q, U, V
-# where the stokes Q and U parameters are define the Faraday spectrum.
+#     Phi location (rad/m/m), Dec (pixel), RA (pixel), Stokes I, Q, U, V, specindex
+# where the stokes Q and U parameters define the Faraday spectrum.
 # The given Stokes I and V are simply assigned to all frequencies (alpha=0).
 
 reffn = sys.argv[1]  # The reference FITS file from which to grab model header
@@ -31,10 +31,11 @@ nsb = int(sys.argv[5])  # The number of subbands, one FITS file per SB
 freq0 = float(sys.argv[6])  # The frequency of the first channel, in Hz
 dfreq = float(sys.argv[7])  # The channel width, in Hz
 nra = int(sys.argv[8])  # The number of RA pixels
-nra = int(sys.argv[9])  # The number of Dec pixels
+ndec = int(sys.argv[9])  # The number of Dec pixels
 
-# TODO: add noise
 # TODO: convolve models with sky plane PSF
+
+noise = True
 
 # Pixel sizes and ref. location is determined from the header in the reffn
 nra = 100  # Number of pixels in RA
@@ -50,21 +51,31 @@ c = 2.99792458e8
 ref_head = pyfits.getheader(reffn)
 
 for i in range(nsb):
-    sbcube = np.zeros((nchan, 4, ndec, nra))
+    sbcube = np.zeros((4, nchan, ndec, nra))
     for j in range(nchan):
+        print 'j', j
         for k in range(len(mdl)):
             freq = freq0 + (i * nchan + j) * dfreq
             l2 = (c / freq) ** 2
+            print 'k', k
+            #Stokes I
             sbcube[0, j, cdec + mdl[k][1], cra - mdl[k][2]] = \
-                mdl[k][3]
+                mdl[k][3] * (freq / freq0)**-mdl[k][7]
+                
+            #Stokes V
             sbcube[3, j, cdec + mdl[k][1], cra - mdl[k][2]] = \
-                mdl[k][6]
+                mdl[k][6] * (freq / freq0)**-mdl[k][7]
 
+            # Stokes Q & U from Faraday spectrum
             val = complex(mdl[k][4], mdl[k][5])
-            val = val * np.exp(2. * complex(0, 1) * mdl[k][0] * l2)
+            val = val * np.exp(2. * complex(0, 1) * mdl[k][0] * l2) 
 
-            sbcube[1, j, cdec + mdl[k][1], cra - mdl[k][2]] = val.real
-            sbcube[2, j, cdec + mdl[k][1], cra - mdl[k][2]] = val.imag
+            sbcube[1, j, cdec + mdl[k][1], cra - mdl[k][2]] = val.real \
+                * (freq / freq0)**-mdl[k][7]
+            sbcube[2, j, cdec + mdl[k][1], cra - mdl[k][2]] = val.imag \
+                * (freq / freq0)**-mdl[k][7]
+
+    sbcube += np.random.normal(0,1,np.shape(sbcube))
 
     hdu = pyfits.PrimaryHDU(sbcube)
     hdu.header = ref_head.copy()
