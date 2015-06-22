@@ -47,15 +47,20 @@ observed frequencies. As a default, the code assumes all Stokes parameters
 to be saved in one FITS file. There is an additional option that allows
 for the handling of separately save Q and U FITS files. Simply put all FITS
 files in a single directory and the software will read them all in, stack them
-into a single data cube, and perform RM synthesis along each line of sight. If
-user defined frequency weights should be included, you have to provide a text
-file that gives a weight to be applied to each frequency. The name of this file
-MUST be "weight.txt".
+into a single data cube, and perform RM synthesis along each line of sight. 
 
-The software reads in a parameter file. An example can be found in the file
-rmsynth.par. Copy this file elsewhere and edit to your heart's content. All of
-the parameters listed in the sample file must be included. A description of the
-various options is included in the comments in the .par file.
+User defined frequency weights can be included by providing a text file in which 
+each line containes a weight to be applied to each frequency. The name of this 
+file MUST be "weight.txt".
+
+A spectral index can be provided to the code, either in form of an average
+global value, or in form of an additional FITS file containing a spectral index
+estimate. The FITS file needs to be specified in the parameter file.
+
+The software reads in a parameter file. An example templatecan be found in the 
+file rmsynth.par. All of the parameters listed in the sample file must be included,
+unless explicitly stated in the parameter file.
+A description of the various options is included in the comments in the .par file.
 
 In addition to the parameter file, there are a couple of options that you can
 set when running the code. Type rmsynthesis.py -h if you need help. Right now,
@@ -84,5 +89,14 @@ For more detailed information, please refer to the pyrmsynth
 wiki (https://github.com/mrbell/pyrmsynth/wiki/Using-rmsynthesis.py).
 Any bugs and issues can be reported to the developers via the github issue
 tracker.
+
+------------------------------------------------------------------------------
+
+*Simulation tool*:
+
+Pyrmsynth comes with a simple simulation file, to be found in the simulation
+sub-directory. It takes a user-provided FITS file as a header template, a
+simple model text file, and a number of user-defined command line inputs to 
+produce a simple model data set that can be used for testing purposes. 
                    
 `pyrmsynth` is licensed under the [GPLv3](http://www.gnu.org/licenses/gpl.html).
