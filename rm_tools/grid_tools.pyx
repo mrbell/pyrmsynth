@@ -49,6 +49,7 @@ def sample_grid(np.ndarray[DTYPE_t, ndim=1] l, np.ndarray[DTYPE_t, ndim=1] l2,
     cdef int Nl2 = l2.shape[0]
     cdef int lndx = 0
     cdef np.ndarray[DTYPE_t, ndim=1] d = np.zeros(Nl)
+    cdef np.ndarray[DTYPE_t, ndim=1] dens = np.zeros(Nl)
     cdef float l0 = l[0]
     cdef float dl = l[1] - l0
     cdef Py_ssize_t i
@@ -58,8 +59,9 @@ def sample_grid(np.ndarray[DTYPE_t, ndim=1] l, np.ndarray[DTYPE_t, ndim=1] l2,
         lndx = int((l2[i] - l0)/dl + 0.5)
         if lndx >= 0 and lndx < Nl:
             d[lndx] = d[lndx] + d2[i]
-
-    return d
+            dens[lndx] = dens[lndx] + 1
+            
+    return d, dens
 
 
 def sample_grid_complex(np.ndarray[DTYPE_t, ndim=1] l,

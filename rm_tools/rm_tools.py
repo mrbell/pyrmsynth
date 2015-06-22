@@ -73,7 +73,8 @@ class RMSynth:
     to perform the inversion.
     """
 
-    def __init__(self, nu, dnu, phi, weights=None):
+    def __init__(self, nu, dnu, phi, weights=None, weighting='natural', \
+        var_spectrum):
         """
         RMSynth(nu, dnu, phi, weights=None, isl2=False)
 
@@ -86,9 +87,17 @@ class RMSynth:
                     must be ordered from lowest to highest value.
             dnu-    Width of the frequency channels (in Hz).
             phi-    The requested phi axis.  Use numpy.arange to construct.
-            weights-A vector containing weights. Must be the same length as nu.
-                    Values should be between 0 and 1.  If no weights vector is
-                    given, it will be assumed that each value has weight 1.
+            weights-A vector containing user defined weights. Must be the 
+                    same length as nu. Values should be between 0 and 1.  
+                    If no weights vector is given, it will be assumed that 
+                    each value has weight 1.
+            weighting-A string that specifies the type of weighting scheme to
+                    apply. This can be 'robust', 'uniform', 'radial', or a 
+                    string containing only a float. In the latter case robust
+                    weighting with a robust parameter float(robust) will be 
+                    used.
+            var_spectrum-the inverse variance of the samples, either set to
+                    one, or estimated from Stokes V. 
 
         Outputs:
             None
@@ -118,6 +127,10 @@ class RMSynth:
         self.l2_nonuni = self.convert_nu_to_l2(nu, dnu)
 
         self.weights_nonuni = numpy.flipud(weights)
+        
+        self.weighting = weighting
+        
+        self.var_spectrum = var_spectrum
 
         # another gridding parameter, derived from m and alpha
         self.beta = numpy.pi *\
@@ -234,13 +247,117 @@ class RMSynth:
 
         try:
 
-            # Convolve weights with the GCF
-            [l2_grid, w_grid] = G.grid_1d(self.weights_nonuni,
+            #ATTENTIION: This part is still experimental and the results 
+            #should be handled with caution. Work is needed to better understand the
+            #interplay between weighting and gridding scheme, especially
+            #the use of the grid-correction which seems to be not fully
+            #consistent in the following scheme (which is heavily influenced
+            #by the CASA implementation).
+            
+            if self.weighting == 'uniform':
+                print '\nWeighting scheme is uniform (summed snr method)'
+                #grid the inverse variance weights
+                self.weights_nonuni = self.weights_nonuni * self.var_spectrum
+                [l2_grid, w_grid] = G.grid_1d(self.weights_nonuni,
+                                            self.l2_nonuni / numpy.pi,
+                                            self.dl2 / 2., self.m, self.alpha)
+                [gridded_weights, sample_density] = G.sample_grid(self.l2_beam,
+                                            l2_grid, w_grid)
+                samppix = numpy.where(sample_density!=0)
+                for i in range(len(self.l2_nonuni/numpy.pi)):
+                    l2p = self.l2_nonuni[i]/numpy.pi
+                    s = abs(self.l2_beam - l2p)
+                    l2p_i = numpy.where(s==min(s))
+                    assert(gridded_weights[l2p_i]!=0)
+                    self.weights_nonuni[i] /= gridded_weights[l2p_i]
+                [l2_grid, w_grid] = G.grid_1d(self.weights_nonuni,
+                                            self.l2_nonuni / numpy.pi,
+                                            self.dl2 / 2., self.m, self.alpha)
+                [weights4rmsf, sample_density] = G.sample_grid(self.l2_beam,
+                                            l2_grid, w_grid)
+                self.weight_spectrum = numpy.ones(len(sample_density))
+            elif self.weighting == 'uniform-aips':
+                print 'Weighting scheme is uniform (counting method)'
+                # Convolve weights with the GCF
+                [l2_grid, w_grid] = G.grid_1d(self.weights_nonuni,
                                           self.l2_nonuni / numpy.pi,
                                           self.dl2 / 2., self.m, self.alpha)
+                # Put the convolved points on a grid
+                [weights4rmsf, sample_density] = \
+                    G.sample_grid(self.l2_beam, l2_grid, w_grid)
+                samppix = numpy.where(sample_density!=0)
+                self.weight_spectrum = numpy.ones(len(sample_density))
+                self.weight_spectrum[samppix] = 1. / sample_density[samppix] # uniform weights
+            elif self.weighting == 'natural':
+                print '\nWeighting scheme is natural'
+                self.weights_nonuni = self.weights_nonuni * self.var_spectrum
+                # Convolve weights with the GCF
+                [l2_grid, w_grid] = G.grid_1d(self.weights_nonuni,
+                                          self.l2_nonuni / numpy.pi,
+                                          self.dl2 / 2., self.m, self.alpha)
+                # Put the convolved points on a grid
+                [weights4rmsf, sample_density] = \
+                    G.sample_grid(self.l2_beam, l2_grid, w_grid)
+                self.weight_spectrum = numpy.ones(len(sample_density)) # natural
+            elif self.weighting == 'radial':
+                print '\nWeighting scheme is radial'
+                print 'Not implemented yet'
+                exit()
+            else:
+                try:
+                    robustpar = float(self.weighting)
+                except ValueError:
+                    print '\n\nValue given for parameter WEIGHTING is not recognized'
+                    print 'and could not be interpreted as a float value\n'
+                    raise
+                print '\nWeighting scheme is robust with parameter',robustpar
+                #grid the inverse variance weights
+                self.weights_nonuni = self.weights_nonuni * self.var_spectrum
+                [l2_grid, w_grid] = G.grid_1d(self.weights_nonuni,
+                                            self.l2_nonuni / numpy.pi,
+                                            self.dl2 / 2., self.m, self.alpha)
+                [gridded_weights, sample_density] = G.sample_grid(self.l2_beam,
+                                            l2_grid, w_grid)
+                samppix = numpy.where(sample_density!=0)
 
-            # Put the convolved points on a grid
-            weights4rmsf = G.sample_grid(self.l2_beam, l2_grid, w_grid)
+                ########
+
+                # I'm unsure how it should be set up here: 
+
+                # This way counts up the weights in the non-oversampled domain:
+
+                sumwt = numpy.zeros(len(sample_density))
+                sumlocwt = 0.
+                for i in range(len(self.l2_nonuni/numpy.pi)):
+                    l2p = self.l2_nonuni[i]/numpy.pi
+                    s = abs(self.l2_beam - l2p)
+                    l2p_i = numpy.where(s==min(s))
+                    sumwt[l2p_i] += gridded_weights[l2p_i]
+                    sumlocwt += gridded_weights[l2p_i]**2
+
+                # and is consistent with how it's currently done for 'uniform' weighting above.
+                
+                # Whereas this way counts up the weights in the oversampled domain:
+                #sumwt = gridded_weights * sample_density
+                #sumlocwt = sum(gridded_weights**2) # not sure if this should be cumulative (in for-loop)
+                # Not using this method for now.....
+
+                #########
+                
+                for i in range(len(self.l2_nonuni/numpy.pi)):
+                    l2p = self.l2_nonuni[i]/numpy.pi
+                    s = abs(self.l2_beam - l2p)
+                    l2p_i = numpy.where(s==min(s))
+                    f2p = ((5.*10.**(-robustpar))**2)/(sumlocwt/sumwt[l2p_i])
+                    self.weights_nonuni[i] /= gridded_weights[l2p_i] * f2p + 1.0
+                [l2_grid, w_grid] = G.grid_1d(self.weights_nonuni,
+                                            self.l2_nonuni / numpy.pi,
+                                            self.dl2 / 2., self.m, self.alpha)
+                [weights4rmsf, sample_density] = G.sample_grid(self.l2_beam,
+                                            l2_grid, w_grid)
+                self.weight_spectrum = numpy.ones(len(sample_density))
+
+            weights4rmsf = weights4rmsf * self.weight_spectrum
 
         except TypeError:
             print type(self.weights)
