@@ -8,7 +8,7 @@ RM Synthesis software for use with sets of FITS image files.  Written in Python
 with some sub-functions re-written in Cython for speed.  Standard Fourier
 inversion and Hogbom style CLEAN imaging are possible.
 
-Copyright 2012 Michael Bell and Henrik Junklewitz
+Copyright 2012-2015 Michael Bell and Henrik Junklewitz
 
 This file is part of the pyrmsynth package.
 
@@ -44,7 +44,7 @@ import pylab
 
 import rm_tools as R
 
-VERSION = '1.2.1'
+VERSION = '1.3.0'
 
 
 class Params:
@@ -74,8 +74,6 @@ class Params:
         self.input_dir = './'
         self.ra_lim = []
         self.dec_lim = []
-        self.alpha = False
-        self.ref_freq= None
 
     def __call__(self):
         """
@@ -87,14 +85,20 @@ class Params:
         print '    nphi:            ', self.nphi
 
         
-        if type(self.alpha)==float or type(self.alpha)== int:
+        if self.alphafromfile == False:
             print '  Averaged spectral index provided:'
             print '    alpha:           ', self.alpha
-            print '    ref_freq:        ', self.ref_freq
-        elif type(self.alpha) == str: 
+            if self.ref_freq:
+                print '    ref_freq:        ', self.ref_freq
+            else:
+                print '    ref_freq:        '+'Set to mean center frequency.'
+        else: 
             print '  Spectral index image provided:'
-            print '    from:      ', self.alpha
-            print '    ref_freq:        ', self.ref_freq
+            print '    from:           ', self.alpha
+            if self.ref_freq:
+                print '    ref_freq:        ', self.ref_freq
+            else:
+                print '    ref_freq:        '+'Set to mean center frequency.'
             
         if self.do_clean:
             print '  RM CLEAN enabled:'
@@ -149,6 +153,7 @@ def rmsynthesis(params, options, manual=False):
     outcube_mmfn = 'outcube.dat'
     rescube_mmfn = 'outcube_res.dat'
     cleancube_mmfn = 'outcube_clean.dat'
+    cccube_mmfn = 'outcube_cccube.dat'
 
     if options.freq_last:
         freq_axnum = '4'
@@ -443,28 +448,37 @@ def rmsynthesis(params, options, manual=False):
     
     # If requested, produce an array containing the spectral index information
     # and apply it
+    
     if params.alpha:
         
-        if type(params.alpha_image) == str:
+        if params.alphafromfile:
             alphadata = pyfits.getdata(params.alpha)
             if numpy.shape(alphadata) != (decsz[1]-decsz[0], rasz[1]-rasz[0]):
-                raise Exception('Size of the spectral index image is \
-                    inconsestent with parameter inputs.')  
-            alpha=alphadata
+                try:
+                    alpha = alphadata.reshape((decsz[1]-decsz[0], rasz[1]-rasz[0]))
+                except ValueError:
+                    raise Exception('Size of the spectral index image is inconsestent with parameter inputs.')  
+            else:
+                alpha=alphadata
             
-        elif type(params.alpha)==float or type(params.alpha)==int:
-            alpha = numpy.ones((decsz[1]-decsz[0], rasz[1]-rasz[0])) * \
-                params.alpha
+        else:
+            alpha = params.alpha
     
+        # set rest frequency to mean frequency across band
+        if params.ref_freq == None:
+            #params.ref_freq = numpy.mean(nus)
+            params.ref_freq = nus[0]
+
         # Rescale cube with spectral dependence function s, assuming 
         # separability of the spectrally dependent Faraday spectrum, 
         # following de Bruyn & Brentjens 2005. Division already by
         # lambda2 dependence despite the array still being ordered
         # in frequency.
     
-        #PROBLEM: HOW TO TRANSLATE THE SPECTRUM? MOST PROBABLY NOT CORRECT 
-        #THIS WAY
-        cube /= (C2/(nus/params.rest_freq)**2)-alpha
+        #PROBLEM: HOW TO TRANSLATE THE SPECTRUM? CORRECT THIS WAY?
+        
+        for k in range(len(nus)):
+            cube[k] /= (nus[k]/params.ref_freq)**(-alpha)
     
         
     # initialize the RMSynth class that does all the work
@@ -524,6 +538,10 @@ def rmsynthesis(params, options, manual=False):
         cleancube = create_memmap_file_and_array(cleancube_mmfn,
             (len(params.phi), len(cube[0]), len(cube[0][0])),
             numpy.dtype('complex128'))
+
+        cccube = create_memmap_file_and_array(cccube_mmfn,
+            (len(params.phi), len(cube[0]), len(cube[0][0])),
+            numpy.dtype('complex128'))
             
     print 'Performing synthesis...'
     progress(20, 0)
@@ -536,7 +554,6 @@ def rmsynthesis(params, options, manual=False):
     for indx in range(decsz[1] - decsz[0]):
         for jndx in range(rasz[1] - rasz[0]):
             los = cube[:, indx, jndx]
-            print 'los', los
             if params.do_clean:
                 rmc.reset()
                 rmc.perform_clean(los)
@@ -548,21 +565,24 @@ def rmsynthesis(params, options, manual=False):
                     cclist.append([rmc.cc_phi_list[kndx][0], indx, jndx,
                         rmc.cc_val_list[kndx].real,
                         rmc.cc_val_list[kndx].imag])
+                    cccube[:, indx, jndx] = rmc.cc_add_list.copy()
             else:
                 dicube[:, indx, jndx] = rms.compute_dirty_image(los)
         pcent = 100. * (indx + 1.) * (jndx + 1.) / (rasz[1] - rasz[0]) /\
              (decsz[1] - decsz[0])
         progress(20, pcent)
-      
-    print '\n'  
-    print "The fitted FWHM of the clean beam is " +str(round(rmc.sdev,2)) + " rad/m^2"
-    print '\n'
+
+    if params.do_clean:  
+        print '\n'  
+        print "The fitted FWHM of the clean beam is " +str(round(rmc.sdev,2)) + " rad/m^2"
+        print '\n'
 
     print 'RM synthesis done!  Writing out FITS files...'
     write_output_files(dicube, params, thead, 'di')
     if params.do_clean:
         write_output_files(rescube, params, thead, 'residual')
         write_output_files(cleancube, params, thead, 'clean')
+        write_output_files(cccube, params, thead, 'cc')
         #print 'Writing out CC list...'
         # TODO: need to make this usable!
         #   it doesn't work right now because there are just way too many CCs
@@ -577,8 +597,9 @@ def rmsynthesis(params, options, manual=False):
         del rescube
     os.remove(incube_mmfn)
     os.remove(outcube_mmfn)
-    os.remove(cleancube_mmfn)
-    os.remove(rescube_mmfn)
+    if params.do_clean:
+        os.remove(cleancube_mmfn)
+        os.remove(rescube_mmfn)
 
     print 'Done!'
 
@@ -842,14 +863,20 @@ def parse_input_file(infile):
     params.outputfn = parset['outputfn']
     params.input_dir = parset['input_dir']
 
-    if parset['alpha_image'].lower() == 'false':
-        params.alpha_image = False
-        params.alpha_val=float(parset['alpha_val'])
-        params.ref_freq=float(parset['ref_freq'])
+    params.alphafromfile = False
+    if 'alpha' in parset:
+        try:
+            params.alpha = numpy.float(parset['alpha'])
+        except ValueError:
+            params.alphafromfile = True
+            params.alpha = parset['alpha']
     else:
-        params.alpha_image = True
-        params.alpha_path=parset['alpha_path']
-        params.ref_freq=thead.get('NFREQ')
+        params.alpha = False
+
+    if 'ref_freq' in parset:
+        params.ref_freq = numpy.float(parset['ref_freq'])
+    else:
+        params.ref_freq = None
     
     if 'do_weight' in parset:
         params.weight = numpy.loadtxt(params.input_dir + parset['do_weight'])
@@ -891,7 +918,7 @@ if __name__ == '__main__':
         parser.error("Incorrect number of arguments")
 
     print "rmsynthesis.py ver. " + VERSION
-    print "Written by Michael Bell"
+    print "Written by Michael Bell & Henrik Junklewitz"
     print ""
     print "Parsing parameter file..."
     params = parse_input_file(args[0])
