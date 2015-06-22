@@ -1,24 +1,24 @@
 `pyrmsynth` - Python based RM Synthesis code including RMCLEAN
 ==============================================================
 
-*Current version:* 1.2.1
-*Updated on:* 2014-03-29
+*Current version:* 1.3.0
+*Updated on:* 2015-06-22
 
-`pyrmsynth` performs RM synthesis, either simply by Fourier transformation 
+`pyrmsynth` performs RM-synthesis, either simply by Fourier transformation 
 (to produce a dirty image) or using the RMCLEAN method as described by 
 Heald, et al. (2009).  It uses FFTs for the Fourier inversion and, as far as  
 known to the authors, this is the only RM synthesis software around that does
 this. The Numpy FFTs are themselves quite fast, but in order to use them, the
-data first need to be placed on a regularly spaced lambda^2 grid. For this, the
-data are "gridded" by convolution with a Kaiser-Bessel Window function and
+data first need to be placed on a regularly spaced lambda^2 grid. For this, 
+the data are "gridded" by convolution with a Kaiser-Bessel Window function and
 sampling at regular intervals, as described in e.g. Beatty, Nishimura, and
 Pauly (IEEE Transactions in Med. Imaging, Vol 24, No. 6, 2005). This procedure
 also naturally allows for the handling of non-regularly spaced frequencies.
 
 The gridding procedure, which requires a convolution, is quite slow when 
-implemented in pure Python, so I was re-implemented the gridding routines using
-Cython, which converts python-eque code into C code that can be compiled and 
-imported into Python.
+implemented in pure Python, thus, it was re-implemented the gridding routines 
+using Cython, which converts python-eque code into C code that can be compiled 
+and imported into Python.
 
 The result is a package that performs fast RM Synthesis and RM CLEAN imaging
 while still providing the flexibility of a Python interface.
