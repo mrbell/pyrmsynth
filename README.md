@@ -35,7 +35,9 @@ classes for RM synthesis and RM CLEAN. You can easily write your own scripts
 to do file I/O and use this package to do the actual RM synthesis computations
 in an efficient manner.
 
-Code usage:
+------------------------------------------------------------------------------
+
+*Code usage*:
 
 python rmsynthesis.py <input parameter file>
 
