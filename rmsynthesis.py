@@ -74,6 +74,8 @@ class Params:
         self.input_dir = './'
         self.ra_lim = []
         self.dec_lim = []
+        self.imagemask = ''
+        self.threshold = 0.
 
     def __call__(self):
         """
@@ -99,7 +101,16 @@ class Params:
                 print '    ref_freq:        ', self.ref_freq
             else:
                 print '    ref_freq:        '+'Set to mean center frequency.'
-            
+        
+        if self.imagemask == '':
+             print 'No image mask is specified. Will use all sky plane pixels\
+                 in RM Synthesis'
+        else:
+             print 'Image mask specified. Will use pixels selected by mask {}'
+             format(self.imagemask)
+                 
+        print '  Polarized intensity detection threshold: ', self.threshold        
+        
         if self.do_clean:
             print '  RM CLEAN enabled:'
             print '    niter:           ', self.niter
@@ -153,7 +164,12 @@ def rmsynthesis(params, options, manual=False):
     outcube_mmfn = 'outcube.dat'
     rescube_mmfn = 'outcube_res.dat'
     cleancube_mmfn = 'outcube_clean.dat'
-    cccube_mmfn = 'outcube_cccube.dat'
+    cccube_mmfn = 'outcube_cc.dat'
+    pmap_mmfn = 'outmap_p.dat'
+    phimap_mmfn = 'outmap_phi.dat'
+    qmap_mmfn = 'outmap_q.dat'
+    umap_mmfn = 'outmap_u.dat'
+
 
     if options.freq_last:
         freq_axnum = '4'
@@ -185,6 +201,12 @@ def rmsynthesis(params, options, manual=False):
             fn = fns_copy[indx]
             if fn[len(fn) - 4:len(fn)].lower() != 'fits':
                 fns.remove(fn)
+
+        # If a mask file is specified, above lines will add the mask fits 
+        # to fns. Removing it from the list of valid fits files
+        if params.imagemask != '':
+            fns.remove(params.imagemask.split('/')[-1])
+
 
         if len(fns) == 0:
             raise IOError('No valid files found in this directory!')
@@ -259,7 +281,28 @@ def rmsynthesis(params, options, manual=False):
     else:
         params.ra_lim[1] = len(tdata[0, 0, 0])
     if rasz[0] >= rasz[1]:
-        raise Exception('Invalid image bounds')    
+        raise Exception('Invalid image bounds')  
+        
+    # Get the appropriate mask
+    if params.imagemask == '':
+        # If no mask is specified, assign 1's to all pixels in the mask image
+        ra_size = params.ra_lim[1] - params.ra_lim[0]
+        dec_size = params.dec_lim[1] - params.dec_lim[0]
+        maskimage = numpy.ones((dec_size, ra_size), dtype=numpy.int_)
+    else:
+        # Read in the mask file
+        try:
+            maskdata = pyfits.getdata(params.imagemask)
+            maskhead = pyfits.getheader(params.imagemask)
+        except:
+            raise Exception('Unable to read the mask image.')
+        # Check if the mask has the same shape as the input image
+        if thead['NAXIS1'] != maskhead['NAXIS1'] or \
+           thead['NAXIS2'] != maskhead['NAXIS2']:
+            raise Exception('Mask and Stokes images have different image sizes.')
+        else:
+            # Extract the submask as specified by ra, dec limits
+            maskimage = maskdata[decsz[0]:decsz[1], rasz[0]:rasz[1]]
     
     nchan = thead.get('NAXIS' + freq_axnum)
     if options.rest_freq and nchan != 1:
@@ -363,9 +406,15 @@ def rmsynthesis(params, options, manual=False):
             tdata_q = pyfits.getdata(params.input_dir + qsubdir + fnq)
             thead_q = pyfits.getheader(params.input_dir + qsubdir + fnq)
             tdata_u = pyfits.getdata(params.input_dir + usubdir + fnu)
-            thead_u = pyfits.getheader(params.input_dir + usubdir + fnu)
+            thead_u = pyfits.getheader(params.input_dir + usubdir + fnu)  
             if options.rest_freq:
-                if thead_q['RESTFREQ'] != thead_u['RESTFREQ']:
+                try:
+                    q_restfreq = thead_q['RESTFREQ']
+                    u_restfreq = thead_u['RESTFREQ']
+                except KeyError:
+                    q_restfreq = thead_q['RESTFRQ']
+                    u_restfreq = thead_u['RESTFRQ']
+                if q_restfreq != u_restfreq:
                     raise Exception('Something went wrong!  I am trying ' +
                         'to combine Q & U images at different frequencies!')
             else:
@@ -406,12 +455,20 @@ def rmsynthesis(params, options, manual=False):
                     msg = 'When the rest frequency option is selected, ' + \
                         'only one channel is allowed per file!'
                     raise Exception(msg)
-                params.nu[base_indx] = thead_q.get('RESTFREQ')
+                try:
+                    params.nu[base_indx] = thead_q['RESTFREQ']
+                except KeyError:
+                    params.nu[base_indx] = thead_q['RESTFRQ']
             else:
-                flist = numpy.arange(nchan) *\
-                    thead_q.get('CDELT' + freq_axnum) +\
-                    thead_q.get('CRVAL' + freq_axnum)
-                params.nu[base_indx:base_indx + nchan] = flist
+                if nchan != 1:
+                    flist = numpy.arange(nchan) *\
+                        thead_q.get('CDELT' + freq_axnum) +\
+                        thead_q.get('CRVAL' + freq_axnum)
+                    params.nu[base_indx:base_indx + nchan] = flist
+                else:
+                    # When each fits file has a separate Q or U image, CDELT
+                    # cannot be used to estimate the frequency values.
+                    params.nu[base_indx] = thead_q.get('CRVAL'+freq_axnum)
 
             pcent = 100. * (indx + 1.) / len(fns_q)
             progress(20, pcent)
@@ -420,10 +477,22 @@ def rmsynthesis(params, options, manual=False):
 
     if options.separate_stokes:
         thead = thead_q
+        # SARRVESH'S EDIT
+        if nchan == 1:
+            params.dnu = thead_q['CDELT'+freq_num]
 
     if options.rest_freq:
-        # FIXME: This isn't very general and could lead to problems.
-        params.dnu = params.nu[1] - params.nu[0]
+        # SARRVESH'S EDIT
+        # dnu can be estimated using optical velocity information in 
+        # the FITS header. But this works only with images produced 
+        # by AWImager and WSClean. Have to be tested with other imagers
+        if thead_q['CTYPE'+freq_axnum] == 'VOPT' and thead_q['CUNIT'+freq_axnum] == 'm/s':
+            velocity = thead_q['CDELT'+freq_axnum]
+            C = 299792458 # light speed in m/s
+            params.dnu = (params.nu[0])/(1-(velocity/C)) - params.nu[0]
+        else:         
+            # FIXME: This isn't very general and could lead to problems.
+            params.dnu = params.nu[1] - params.nu[0]
     
     
     # Print out basic parameters    
@@ -553,21 +622,30 @@ def rmsynthesis(params, options, manual=False):
 
     for indx in range(decsz[1] - decsz[0]):
         for jndx in range(rasz[1] - rasz[0]):
-            los = cube[:, indx, jndx]
-            if params.do_clean:
-                rmc.reset()
-                rmc.perform_clean(los)
-                rmc.restore_clean_map()
-                cleancube[:, indx, jndx] = rmc.clean_map.copy()
-                rescube[:, indx, jndx] = rmc.residual_map.copy()
-                dicube[:, indx, jndx] = rmc.dirty_image.copy()
-                for kndx in range(len(rmc.cc_phi_list)):
-                    cclist.append([rmc.cc_phi_list[kndx][0], indx, jndx,
-                        rmc.cc_val_list[kndx].real,
-                        rmc.cc_val_list[kndx].imag])
-                    cccube[:, indx, jndx] = rmc.cc_add_list.copy()
+            if maskimage[indx, jndx] != 0:
+                los = cube[:, indx, jndx]
+
+                if params.do_clean:
+                    rmc.reset()
+                    rmc.perform_clean(los)
+                    rmc.restore_clean_map()
+                    cleancube[:, indx, jndx] = rmc.clean_map.copy()
+                    rescube[:, indx, jndx] = rmc.residual_map.copy()
+                    dicube[:, indx, jndx] = rmc.dirty_image.copy()
+                    for kndx in range(len(rmc.cc_phi_list)):
+                        cclist.append([rmc.cc_phi_list[kndx][0], indx, jndx,
+                            rmc.cc_val_list[kndx].real,
+                            rmc.cc_val_list[kndx].imag])
+                        # SARRVESH'S EDIT
+                        cccube[:, indx, jndx] = rmc.cc_add_list.copy()
+                else:
+                    dicube[:, indx, jndx] = rms.compute_dirty_image(los)
             else:
-                dicube[:, indx, jndx] = rms.compute_dirty_image(los)
+                dicube[:, indx, jndx] = numpy.zeros((params.nphi,))
+                if params.do_clean:
+                    cleancube[:, indx, jndx] = numpy.zeros((params.nphi,))
+                    rescube[:, indx, jndx] = numpy.zeros((params.nphi,))
+                    
         pcent = 100. * (indx + 1.) * (jndx + 1.) / (rasz[1] - rasz[0]) /\
              (decsz[1] - decsz[0])
         progress(20, pcent)
@@ -583,11 +661,54 @@ def rmsynthesis(params, options, manual=False):
         write_output_files(rescube, params, thead, 'residual')
         write_output_files(cleancube, params, thead, 'clean')
         write_output_files(cccube, params, thead, 'cc')
-        #print 'Writing out CC list...'
+        print 'Writing out CC list...'
+        write_output_files(cccube, params, thead, 'cc')
         # TODO: need to make this usable!
         #   it doesn't work right now because there are just way too many CCs
 
         #write_cc_list(cclist, params.outputfn+"_cc.txt")
+
+    polintmap = create_memmap_file_and_array(pmap_mmfn, \
+            (decsz[1]-decsz[0], rasz[1]-rasz[0]), numpy.dtype('float64'))
+    phimap = create_memmap_file_and_array(phimap_mmfn, \
+            (decsz[1]-decsz[0], rasz[1]-rasz[0]), numpy.dtype('float64'))
+    qmap = create_memmap_file_and_array(qmap_mmfn, \
+            (decsz[1]-decsz[0], rasz[1]-rasz[0]), numpy.dtype('float64'))
+    umap = create_memmap_file_and_array(umap_mmfn, \
+            (decsz[1]-decsz[0], rasz[1]-rasz[0]), numpy.dtype('float64'))
+    print 'Computing polarized intensity and Faraday depth maps'
+    for indx in range(decsz[1]-decsz[0]):
+        for jndx in range(rasz[1]-rasz[0]):
+            if maskimage[indx, jndx] != 0:
+                if params.do_clean:
+                    q_los = cleancube[:, indx, jndx].real
+                    u_los = cleancube[:, indx, jndx].imag
+                else:
+                    q_los = dicube[:, indx, jndx].real
+                    u_los = dicube[:, indx, jndx]. imag
+                p_los = numpy.sqrt(numpy.add(numpy.square(q_los), numpy.square(u_los)))
+                if numpy.amax(p_los) > params.threshold:
+                    polintmap[indx, jndx] = numpy.amax(p_los)
+                    indx_max_polint = numpy.argmax(p_los)
+                    phimap[indx, jndx] = params.phi[indx_max_polint]
+                    qmap[indx, jndx] = q_los[indx_max_polint]
+                    umap[indx, jndx] = u_los[indx_max_polint]
+                else:
+                    polintmap[indx, jndx] = numpy.nan
+                    phimap[indx, jndx] = numpy.nan
+                    qmap[indx, jndx] = numpy.nan
+                    umap[indx, jndx] = numpy.nan
+            else:
+                polintmap[indx, jndx] = numpy.nan
+                phimap[indx, jndx] = numpy.nan
+                qmap[indx, jndx] = numpy.nan
+                umap[indx, jndx] = numpy.nan
+    
+    print 'Writing polarized intensity and Faraday depth maps'
+    write_output_maps(polintmap, params, thead, 'polint')
+    write_output_maps(phimap, params, thead, 'phi', 'rad/m/m')
+    write_output_maps(qmap, params, thead, 'qmap')
+    write_output_maps(umap, params, thead, 'umap')
 
     print 'Cleaning up temp files...'
     del dicube
@@ -597,15 +718,23 @@ def rmsynthesis(params, options, manual=False):
         del rescube
     os.remove(incube_mmfn)
     os.remove(outcube_mmfn)
+    os.remove(pmap_mmfn)
+    os.remove(phimap_mmfn)
+    os.remove(qmap_mmfn)
+    os.remove(umap_mmfn)
     if params.do_clean:
         os.remove(cleancube_mmfn)
         os.remove(rescube_mmfn)
+        os.remove(cccube_mmfn)
 
     print 'Done!'
 
 
 def write_cc_list(cclist, fn):
-    """ Pass a RMClean object that contains a cc list and write it to file."""
+    """ Pass a RMClean object that contains a cc list and write it to file.
+        Now DEPRECATED with the new cc list FITS output.    
+    
+    """
 
     cclist_redux = list()
     # Add up all of the components that are at the same location.
@@ -647,6 +776,30 @@ def plot_rmsf(rms):
     pylab.xlabel('$\phi$ (rad/m/m)')
     pylab.show()
 
+
+def write_output_maps(image, params, inhead, typename, bunit='JY/BEAM'):
+    """
+    Write out 2D maps to FITS files.
+    """
+    hdu = pyfits.PrimaryHDU(image)
+    try:
+        generate_header(hdu, inhead, params)
+        # set the appropriate unit for pixel values
+        hdu.header['BUNIT'] = bunit
+        # remove the 3rd axis
+        hdu.header.__delitem__('CTYPE3')
+        hdu.header.__delitem__('CRVAL3')
+        hdu.header.__delitem__('CDELT3')
+        hdu.header.__delitem__('CRPIX3')
+        hdu.header.__delitem__('CROTA3')
+        hdu.header.__delitem__('NAXIS3')
+        hdu.header.__delitem__('CUNIT3')
+    except:
+        print "Warning: There was a problem generating the header, no " + \
+            "header information stored!"
+        print "Unexpected error:", sys.exc_info()[0]
+    hdu_list = pyfits.HDUList([hdu])
+    hdu_list.writeto(params.outputfn + '_' + typename + '.fits', clobber=True)
 
 def write_output_files(cube, params, inhead, typename):
     """
@@ -852,6 +1005,11 @@ def parse_input_file(infile):
     params.dphi = float(parset['dphi'])
     temp = numpy.arange(params.nphi)
     params.phi = params.phi_min + temp * params.dphi
+    
+    if 'imagemask' in parset:
+        params.imagemask = parset['imagemask']
+    else:
+        params.imagemask = ''
 
     if parset['do_clean'].lower() == 'false':
         params.do_clean = False

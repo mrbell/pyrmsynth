@@ -17,6 +17,12 @@ phi_min -100
 nphi 200
 dphi 1
 
+% Mask file. Pixels with non-zero values in the image will be used for RM Synthesis
+% Comment the following line out if you don't wish to use a mask
+% Mask image must have the same number of pixels as the Stokes-Q and U images 
+% irrespective of the ra, dec min and max values.
+imagemask ./mask.fits
+
 % Clean parameters.  gain is the loop gain, niter is the number of clean iterations, 
 % cutoff sets the value of the max of the residual image at which point the procedure stops, defined in Jy
 do_clean False
@@ -33,7 +39,11 @@ cutoff 0.0001
 % alpha 0
 %ref_freq 
 
+% Detection threshold on polarized intensity map
+threshold 0.1
+
 % output file
 outputfn ./
+
 % directory where the input fits file can be found
 input_dir ./

@@ -349,6 +349,9 @@ class RMClean:
         self.current_iter = 0
         self.cc_phi_list = list()
         self.cc_val_list = list()
+        # Variable for storing "added up"
+        # clean components. Will be converted to a Numpy
+        # array later
         self.cc_add_list = list()
 
         self.residual_map = None
@@ -371,7 +374,6 @@ class RMClean:
         self.cc_phi_list = list()
         self.cc_val_list = list()
         self.cc_add_list = list()
-
 
         self.clean_map = None
 
