@@ -479,7 +479,7 @@ def rmsynthesis(params, options, manual=False):
         thead = thead_q
         # SARRVESH'S EDIT
         if nchan == 1:
-            params.dnu = thead_q['CDELT'+freq_num]
+            params.dnu = thead_q['CDELT'+freq_axnum]
 
     if options.rest_freq:
         # SARRVESH'S EDIT
