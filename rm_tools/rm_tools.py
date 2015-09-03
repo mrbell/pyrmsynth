@@ -74,7 +74,7 @@ class RMSynth:
     """
 
     def __init__(self, nu, dnu, phi, weights=None, weighting='natural', \
-        var_spectrum):
+        var_spectrum=1.):
         """
         RMSynth(nu, dnu, phi, weights=None, isl2=False)
 
