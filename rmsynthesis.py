@@ -41,6 +41,7 @@ import sys
 import numpy
 import pyfits
 import pylab
+from pywcs import WCS
 
 import rm_tools as R
 
@@ -85,7 +86,6 @@ class Params:
         print '    phi_min:         ', self.phi_min
         print '    dphi:            ', self.dphi
         print '    nphi:            ', self.nphi
-
         
         if self.alphafromfile == False:
             print '  Averaged spectral index provided:'
@@ -103,8 +103,8 @@ class Params:
                 print '    ref_freq:        '+'Set to mean center frequency.'
         
         if self.imagemask == '':
-             print 'No image mask is specified. Will use all sky plane pixels\
-                 in RM Synthesis'
+            print 'No image mask is specified. Will use all sky plane pixels\
+                in RM Synthesis'
         else:
              print 'Image mask specified. Will use pixels selected by mask {}'
              format(self.imagemask)
@@ -488,7 +488,7 @@ def rmsynthesis(params, options, manual=False):
         # by AWImager and WSClean. Have to be tested with other imagers
         if thead_q['CTYPE'+freq_axnum] == 'VOPT' and thead_q['CUNIT'+freq_axnum] == 'm/s':
             velocity = thead_q['CDELT'+freq_axnum]
-            C = 299792458 # light speed in m/s
+            C = 299792458. # light speed in m/s
             params.dnu = (params.nu[0])/(1-(velocity/C)) - params.nu[0]
         else:         
             # FIXME: This isn't very general and could lead to problems.
@@ -861,16 +861,20 @@ def generate_v_header(hdu, inhead, params):
     hdu.header.add_history('   accompanying _freqlist.txt file for ' +
                            'frequency axis information')
 
+    # Get the reference pixel for the new image
     cpix_ra = (params.ra_lim[1] - params.ra_lim[0]) / 2. + 1.
     cpix_dec = (params.dec_lim[1] - params.dec_lim[0]) / 2. + 1.
-
-    cpix_ra_old = hdu.header['CRPIX1'] - params.ra_lim[0] - 1
-    cpix_dec_old = hdu.header['CRPIX2'] - params.dec_lim[0] - 1
-
-    crval_ra = hdu.header['CRVAL1'] + \
-        (cpix_ra - cpix_ra_old) * hdu.header['CDELT1']
-    crval_dec = hdu.header['CRVAL2'] + \
-        (cpix_dec - cpix_dec_old) * hdu.header['CDELT2']
+    # Get the index of the new reference pixel in the old image
+    cpix_ra_old = params.ra_lim[0] + cpix_ra - 1
+    cpix_dec_old = params.dec_lim[1] - cpix_dec + 1
+    # Find its sky coordinate
+    wcs = WCS(inhead)
+    if inhead['NAXIS'] == 4:
+        crval_ra = wcs.wcs_pix2sky([[cpix_ra_old, cpix_dec_old, 0, 0]], 0)[0][0]
+        crval_dec= wcs.wcs_pix2sky([[cpix_ra_old, cpix_dec_old, 0, 0]], 0)[0][1]
+    if inhead['NAXIS'] == 3:
+        crval_ra = wcs.wcs_pix2sky([[cpix_ra_old, cpix_dec_old, 0]], 0)[0][0]
+        crval_dec= wcs.wcs_pix2sky([[cpix_ra_old, cpix_dec_old, 0]], 0)[0][1]
 
     hdu.header.update('NAXIS1', params.ra_lim[1] - params.ra_lim[0])
     hdu.header.update('CRVAL1', crval_ra)
@@ -906,17 +910,21 @@ def generate_header(hdu, inhead, params):
     hdu.header.update('CRPIX3', 1, 'Reference pixel')
     hdu.header.update('CRVAL3', params.phi_min, 'Reference value')
     hdu.header.update('CDELT3', params.dphi, 'Size of pixel bin')
-
+    
+    # Get the reference pixel for the new image
     cpix_ra = (params.ra_lim[1] - params.ra_lim[0]) / 2. + 1.
     cpix_dec = (params.dec_lim[1] - params.dec_lim[0]) / 2. + 1.
-
-    cpix_ra_old = hdu.header['CRPIX1'] - params.ra_lim[0]
-    cpix_dec_old = hdu.header['CRPIX2'] - params.dec_lim[0]
-
-    crval_ra = hdu.header['CRVAL1'] + \
-        (cpix_ra - cpix_ra_old) * hdu.header['CDELT1']
-    crval_dec = hdu.header['CRVAL2'] + \
-        (cpix_dec - cpix_dec_old) * hdu.header['CDELT2']
+    # Get the index of the new reference pixel in the old image
+    cpix_ra_old = params.ra_lim[0] + cpix_ra - 1
+    cpix_dec_old = params.dec_lim[1] - cpix_dec + 1
+    # Find its sky coordinate
+    wcs = WCS(inhead)
+    if inhead['NAXIS'] == 4:
+        crval_ra = wcs.wcs_pix2sky([[cpix_ra_old, cpix_dec_old, 0, 0]], 0)[0][0]
+        crval_dec= wcs.wcs_pix2sky([[cpix_ra_old, cpix_dec_old, 0, 0]], 0)[0][1]
+    if inhead['NAXIS'] == 3:
+        crval_ra = wcs.wcs_pix2sky([[cpix_ra_old, cpix_dec_old, 0]], 0)[0][0]
+        crval_dec= wcs.wcs_pix2sky([[cpix_ra_old, cpix_dec_old, 0]], 0)[0][1]
 
     hdu.header.update('CRVAL1', crval_ra)
     hdu.header.update('CRPIX1', cpix_ra)
@@ -937,7 +945,7 @@ def generate_header(hdu, inhead, params):
 
     hdu.header.update('TFFWHM', round(rmsf,2), 'Theoretical FWHM of the RMSF ' +
         ', rad/m/m')
-    hdu.header.update('MAXSCL', round(maxscale,2), 'Maximum scale in ' +
+    hdu.header.update('MAXSCL', round(maxscale, 2), 'Maximum scale in ' +
         'Faraday depth rad/m/m')
 
     hdu.header.add_history('RMSYNTH: RM Synthesis performed by ' +
@@ -1054,20 +1062,20 @@ if __name__ == '__main__':
     parser.add_option("-V", "--stokes_v", action="store_true",
                       dest="stokes_v",
                       help="Produce a Stokes V cube after reading the " +
-                          "fits files.",
+                      "fits files.",
                       default=False)
     parser.add_option("-s", "--separate_stokes", action="store_true",
                       dest="separate_stokes",
                       help="Indicate that the Stokes Q and U input images " +
-                          "are stored in separate FITS files.",
+                      "are stored in separate FITS files.",
                       default=False)
     parser.add_option("-f", "--freq_last", action="store_true",
                       dest="freq_last", help="Indicate that NAXIS4 is the " +
-                          "frequency axis.",
+                      "frequency axis.",
                       default=False)
     parser.add_option("-r", "--rest_freq", action="store_true",
                       dest="rest_freq", help="Indicate that the frequency " +
-                          "for an image is " +
+                      "for an image is " +
                       "given in the RESTFREQ header keyword.", default=False)
 
     (options, args) = parser.parse_args()
