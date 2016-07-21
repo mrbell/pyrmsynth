@@ -106,8 +106,8 @@ class Params:
             print 'No image mask is specified. Will use all sky plane pixels\
                 in RM Synthesis'
         else:
-             print 'Image mask specified. Will use pixels selected by mask {}'
-             format(self.imagemask)
+            print 'Image mask specified. Will use pixels selected by mask '\
+                 + str(self.imagemask)
                  
         print '  Polarized intensity detection threshold: ', self.threshold        
         
@@ -292,8 +292,9 @@ def rmsynthesis(params, options, manual=False):
     else:
         # Read in the mask file
         try:
-            maskdata = pyfits.getdata(params.imagemask)
-            maskhead = pyfits.getheader(params.imagemask)
+            # mask should be in the input directory
+            maskdata = pyfits.getdata(params.input_dir+params.imagemask)
+            maskhead = pyfits.getheader(params.input_dir+params.imagemask)
         except:
             raise Exception('Unable to read the mask image.')
         # Check if the mask has the same shape as the input image
@@ -301,6 +302,15 @@ def rmsynthesis(params, options, manual=False):
            thead['NAXIS2'] != maskhead['NAXIS2']:
             raise Exception('Mask and Stokes images have different image sizes.')
         else:
+            # Check the FITS format of mask file;take care of possible extra
+            # axes like correlation or frequency
+            if (len(numpy.shape(maskdata))>2):
+               try:
+                   maskdata = maskdata.reshape(params.dec_lim[1] - \
+                       params.dec_lim[0],params.ra_lim[1] - params.ra_lim[0])
+               except:
+                   raise Exception('Incompatible number of axes in Mask file.')
+                   
             # Extract the submask as specified by ra, dec limits
             maskimage = maskdata[decsz[0]:decsz[1], rasz[0]:rasz[1]]
     

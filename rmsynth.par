@@ -20,7 +20,8 @@ dphi 1
 % Mask file. Pixels with non-zero values in the image will be used for RM Synthesis
 % Comment the following line out if you don't wish to use a mask
 % Mask image must have the same number of pixels as the Stokes-Q and U images 
-% irrespective of the ra, dec min and max values.
+% irrespective of the ra, dec min and max values. The mask file should be
+% located in the input_dir
 imagemask ./mask.fits
 
 % Clean parameters.  gain is the loop gain, niter is the number of clean iterations, 
