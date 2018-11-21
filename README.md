@@ -37,6 +37,23 @@ in an efficient manner.
 
 ------------------------------------------------------------------------------
 
+*Building*:
+
+Dependancies: cython, gsl.
+
+To build the cython component, cd to the `rm_tools` directory and run:
+```bash
+python setup.py build_ext --inplace
+```
+Add the `rm_tools` directory to your `PYTHONPATH` and put `rmsynthesis.py`
+somewhere in your `PATH`.
+E.g.:
+```bash
+echo 'export PYTHONPATH=$PYTHONPATH:/path/to/rm_tools' >> ~/.bashrc
+cp rmsynthesis.py ~/bin
+```
+
+
 *Code usage*:
 
 python rmsynthesis.py <input parameter file>
